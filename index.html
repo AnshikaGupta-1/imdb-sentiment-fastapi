@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>IMDb Sentiment Analyzer</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; }
+        .positive { color: green; font-weight: bold; }
+        .negative { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🎬 IMDb Movie Sentiment Analyzer</h1>
+    <form method="post" action="/search">
+        <input type="text" name="movie" placeholder="Enter movie name" required>
+        <button type="submit">Search</button>
+    </form>
+
+    {% if movies %}
+    <h2>Search Results</h2>
+    <ul>
+        {% for m in movies %}
+        <li><a href="/movie/{{ m.imdbID }}">{{ m.Title }} ({{ m.Year }})</a></li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if title %}
+        <h2>{{ title }}</h2>
+        <p><strong>Sample Review:</strong> {{ review }}</p>
+        <p>Sentiment: <span class="{{ label }}">{{ result }}</span></p>
+    {% endif %}
+</body>
+</html>
