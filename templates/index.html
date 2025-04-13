@@ -78,8 +78,16 @@
     .sentiment-negative { border-left: 4px solid var(--negative); }
 
     @media (max-width: 768px) {
-      .movie-details, .search-container { grid-template-columns: 1fr; flex-direction: column; }
-    }
+  .movie-details {
+    display: block;
+  }
+  .search-container {
+    flex-direction: column;
+  }
+  .search-button {
+    margin-top: 1rem;
+  }
+}
   </style>
 </head>
 <body>
