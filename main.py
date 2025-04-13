@@ -85,7 +85,8 @@ async def movie_detail(request: Request, movie_id: str, page: int = 1):
         for r in reviews_raw:
             text = r.get("content", "")
             if text:
-                sentiment_result = sentiment_model(text)[0]
+                short_text = text[:500]  # Trim long reviews
+                sentiment_result = sentiment_model(short_text)[0]
                 # Determine sentiment class (adjust thresholds as needed)
                 label = "positive" if sentiment_result["label"].startswith("4") or sentiment_result["label"].startswith("5") else "negative"
                 analyzed_reviews.append({
