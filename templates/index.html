@@ -1,123 +1,179 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Movie Sentiment Analyzer</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 2rem;
-            background-color: #f9f9f9;
-        }
-        h1 {
-            color: #333;
-        }
-        form {
-            margin-bottom: 2rem;
-        }
-        input[type="text"] {
-            padding: 0.5rem;
-            width: 300px;
-            margin-right: 1rem;
-        }
-        button {
-            padding: 0.5rem 1rem;
-            cursor: pointer;
-        }
-        .review-box {
-            border: 1px solid #ddd;
-            border-left: 6px solid;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            background-color: #fff;
-            border-radius: 6px;
-        }
-        .positive {
-            border-color: #4CAF50;
-            background-color: #e8f5e9;
-        }
-        .negative {
-            border-color: #f44336;
-            background-color: #ffebee;
-        }
-        .review-text {
-            white-space: pre-wrap;
-        }
-        .pagination {
-            margin-top: 1rem;
-        }
-        .pagination a {
-            margin-right: 1rem;
-            text-decoration: none;
-            color: #007BFF;
-        }
-        .pagination span {
-            font-weight: bold;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MovieSentiment - IMDb Review Analyzer</title>
+  <style>
+    :root {
+      --background: #1c1f2e;
+      --foreground: #f7fafc;
+      --primary: #f3d03e;
+      --secondary: #1e2235;
+      --muted: #2d3142;
+      --accent: #f3d03e;
+      --positive: #4ade80;
+      --negative: #ef4444;
+      --border: #2d3142;
+    }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: var(--background);
+      color: var(--foreground);
+    }
+    .container { max-width: 1200px; margin: auto; padding: 1rem; }
+    header { background: var(--secondary); padding: 1rem 0; text-align: center; }
+    .accent { color: var(--accent); }
+
+    .search-section {
+      text-align: center;
+      padding: 2rem 0;
+    }
+    .search-container {
+      display: flex;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .search-input {
+      flex: 1;
+      padding: 0.8rem;
+      border: 2px solid var(--border);
+      background-color: var(--muted);
+      color: var(--foreground);
+    }
+    .search-button {
+      padding: 0.8rem 1.5rem;
+      background-color: var(--accent);
+      color: var(--background);
+      border: none;
+    }
+
+    .movie-details {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 2rem;
+      background-color: var(--secondary);
+      padding: 2rem;
+      margin: 2rem 0;
+    }
+    .movie-poster img { width: 100%; border-radius: 8px; }
+
+    .sentiment-card {
+      background-color: var(--secondary);
+      padding: 1.5rem;
+      border-radius: 8px;
+    }
+    .progress-bar { background-color: var(--muted); height: 10px; margin: 1rem 0; }
+    .progress { height: 100%; background-color: var(--positive); }
+    .negative .progress { background-color: var(--negative); }
+
+    .review-card {
+      background-color: var(--secondary);
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+    }
+    .sentiment-positive { border-left: 4px solid var(--positive); }
+    .sentiment-negative { border-left: 4px solid var(--negative); }
+
+    @media (max-width: 768px) {
+      .movie-details, .search-container { grid-template-columns: 1fr; flex-direction: column; }
+    }
+  </style>
 </head>
 <body>
-    <h1>Movie Sentiment Analyzer</h1>
+  <header>
+    <div class="container">
+      <h1>Movie<span class="accent">Sentiment</span></h1>
+    </div>
+  </header>
 
-    <form action="/search" method="post">
-        <input type="text" name="movie" placeholder="Enter movie title" required>
-        <button type="submit">Search</button>
-    </form>
+  <main class="container">
+    <section class="search-section">
+      <h2>Analyze IMDb Movie Reviews</h2>
+      <p>Search for a movie to see sentiment analysis of its reviews</p>
+      <form method="post" action="/search">
+        <div class="search-container">
+          <input type="text" name="movie" placeholder="Search..." class="search-input" required />
+          <button class="search-button">Search</button>
+        </div>
+      </form>
+    </section>
 
     {% if movies %}
-        <h2>Search Results:</h2>
-        <ul>
-            {% for movie in movies %}
-                <li>
-                    <a href="/movie/{{ movie.imdbID }}">{{ movie.Title }} ({{ movie.Year }})</a>
-                </li>
-            {% endfor %}
-        </ul>
+    <section>
+      <h2>Search Results</h2>
+      <ul>
+        {% for movie in movies %}
+        <li><a href="/movie/{{ movie.id }}">{{ movie.title }} ({{ movie.year }})</a></li>
+        {% endfor %}
+      </ul>
+    </section>
     {% endif %}
 
     {% if title %}
-        <h2>Reviews for: {{ title }}</h2>
-        {% for r in reviews %}
-            <div class="review-box {{ r.label }}">
-                <p><strong>Sentiment:</strong> {{ r.sentiment }}</p>
-                <p class="review-text">
-                    {{ r.text[:300] }}
-                    {% if r.text|length > 300 %}
-                        <span class="dots">...</span>
-                        <span class="more-text" style="display:none;">{{ r.text[300:] }}</span>
-                        <button onclick="toggleReadMore(this)">Read more</button>
-                    {% endif %}
-                </p>
-            </div>
-        {% endfor %}
+    <section class="movie-details">
+      <div class="movie-poster">
+        <img src="{{ poster }}" alt="Poster for {{ title }}">
+      </div>
+      <div class="movie-info">
+        <h2>{{ title }}</h2>
+        <p>Rating: {{ rating }}/10 | Runtime: {{ runtime }} min | Genre: {{ genres }}</p>
+        <p>{{ overview }}</p>
+        <p><strong>Director:</strong> {{ director }}</p>
+        <p><strong>Stars:</strong> {{ cast }}</p>
+      </div>
+    </section>
 
-        {% if total_pages > 1 %}
-            <div class="pagination">
-                {% if current_page > 1 %}
-                    <a href="/movie/{{ movie_id }}?page={{ current_page - 1 }}">Prev</a>
-                {% endif %}
-                <span>Page {{ current_page }} of {{ total_pages }}</span>
-                {% if current_page < total_pages %}
-                    <a href="/movie/{{ movie_id }}?page={{ current_page + 1 }}">Next</a>
-                {% endif %}
-            </div>
-        {% endif %}
+    <section class="sentiment-overview">
+      <div class="sentiment-card positive">
+        <h3>Positive Reviews</h3>
+        <p>{{ positive_percent }}%</p>
+        <div class="progress-bar"><div class="progress" style="width: {{ positive_percent }}%;"></div></div>
+        <p>{{ positive_count }} reviews</p>
+      </div>
+      <div class="sentiment-card negative">
+        <h3>Negative Reviews</h3>
+        <p>{{ negative_percent }}%</p>
+        <div class="progress-bar"><div class="progress" style="width: {{ negative_percent }}%;"></div></div>
+        <p>{{ negative_count }} reviews</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Reviews</h2>
+      {% for r in reviews %}
+      <div class="review-card sentiment-{{ r.label }}">
+        <p>"{{ r.content }}"</p>
+        <p><strong>- {{ r.author }}</strong>, Rating: {{ r.rating }}</p>
+      </div>
+      {% endfor %}
+    </section>
     {% endif %}
+  </main>
+     <div id="loading" style="display:none; text-align:center; margin:20px;">
+  <div style="border: 6px solid #f3f3f3; border-top: 6px solid #555; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin:auto;"></div>
+  <p>Fetching reviews...</p>
+</div>
 
-    <script>
-        function toggleReadMore(btn) {
-            const moreText = btn.previousElementSibling;
-            const dots = moreText.previousElementSibling;
+<script>
+  function showLoading() {
+    document.getElementById('loading').style.display = 'block';
+  }
 
-            if (moreText.style.display === "none") {
-                moreText.style.display = "inline";
-                dots.style.display = "none";
-                btn.textContent = "Read less";
-            } else {
-                moreText.style.display = "none";
-                dots.style.display = "inline";
-                btn.textContent = "Read more";
-            }
-        }
-    </script>
+  // Add loading spinner to each movie link
+  document.querySelectorAll('a[href^="/movie/"]').forEach(link => {
+    link.addEventListener('click', showLoading);
+  });
+</script>
+
+<style>
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+</style>
+
 </body>
 </html>
