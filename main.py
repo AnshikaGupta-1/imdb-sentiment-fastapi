@@ -4,12 +4,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from transformers import pipeline
-from imdb import IMDb
+import requests
 import uvicorn
 import os
-from cinemagoer import Cinemagoer
 
-ia = Cinemagoer()
+# Load sentiment analysis model
+sentiment_model = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+
+# TMDb API Setup
+TMDB_API_KEY = os.environ.get("TMDB_API_KEY")
+TMDB_BASE_URL = "https://api.themoviedb.org/3"
 
 app = FastAPI()
 
@@ -21,14 +25,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load sentiment analysis model
-sentiment_model = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
-
 # Jinja2 templates
 templates = Jinja2Templates(directory="templates")
-
-# IMDbPY instance
-ia = IMDb()
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -40,60 +38,52 @@ async def health_check():
 
 @app.post("/search", response_class=HTMLResponse)
 async def search_movie(request: Request, movie: str = Form(...)):
-    search_results = ia.search_movie(movie)
+    url = f"{TMDB_BASE_URL}/search/movie"
+    params = {
+        "api_key": TMDB_API_KEY,
+        "query": movie,
+        "language": "en-US",
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+
     movies = []
-
-    for result in search_results:
-        title = result.get('title', '').lower()
-        year = result.get('year', 0)
-
-        # Load full data (slightly slower)
-        ia.update(result)
-        directors = [d['name'].lower() for d in result.get('directors', [])]
-
-        if (
-            "dunkirk" in title
-            and year == 2017
-            and "christopher nolan" in directors
-        ):
-            movies.append({
-                "Title": result.get('title'),
-                "imdbID": result.movieID,
-                "Year": result.get('year', 'N/A')
-            })
-            break
-
-    if not movies:
-        for result in search_results[:3]:
-            movies.append({
-                "Title": result.get('title'),
-                "imdbID": result.movieID,
-                "Year": result.get('year', 'N/A')
-            })
+    for result in data.get("results", [])[:3]:  # Limit to top 3 matches
+        movies.append({
+            "Title": result.get("title"),
+            "imdbID": result.get("id"),  # TMDb ID
+            "Year": result.get("release_date", "N/A")[:4],
+        })
 
     return templates.TemplateResponse("index.html", {"request": request, "movies": movies})
 
-@app.get("/movie/{imdb_id}", response_class=HTMLResponse)
-async def movie_detail(request: Request, imdb_id: str):
+@app.get("/movie/{movie_id}", response_class=HTMLResponse)
+async def movie_detail(request: Request, movie_id: str):
     try:
-        movie = ia.get_movie(imdb_id)
-        title = movie.get('title', imdb_id)
+        # Fetch movie details
+        movie_url = f"{TMDB_BASE_URL}/movie/{movie_id}"
+        review_url = f"{TMDB_BASE_URL}/movie/{movie_id}/reviews"
+        params = {"api_key": TMDB_API_KEY, "language": "en-US"}
 
-        ia.update(movie, 'reviews')
-        reviews = movie.get('reviews', [])
+        movie_res = requests.get(movie_url, params=params).json()
+        reviews_res = requests.get(review_url, params=params).json()
+
+        title = movie_res.get("title", movie_id)
+        reviews = reviews_res.get("results", [])
 
         if not reviews:
             review = "No reviews found."
             sentiment = "N/A"
             label = "neutral"
         else:
-            review = reviews[0]['content']
-            sentiment = sentiment_model(review)[0]['label']
+            review = reviews[0]["content"]
+            sentiment_result = sentiment_model(review)[0]
+            sentiment = sentiment_result["label"]
             label = "positive" if sentiment.startswith("4") or sentiment.startswith("5") else "negative"
 
     except Exception as e:
-        print(f"IMDbPY error: {e}")
-        title = imdb_id
+        print(f"TMDb API error: {e}")
+        title = movie_id
         review = "Error fetching reviews."
         sentiment = "N/A"
         label = "neutral"
