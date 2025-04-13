@@ -35,6 +35,10 @@ sample_reviews = {
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+    
+@app.head("/")
+async def health_check():
+    return
 
 @app.post("/search", response_class=HTMLResponse)
 async def search_movie(request: Request, movie: str = Form(...)):
