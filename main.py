@@ -6,7 +6,7 @@ import requests
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-
+import os
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -20,7 +20,7 @@ app.add_middleware(
 sentiment_model = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
 
 # OMDb API Key
-API_KEY = "47c47355"
+API_KEY = os.getenv("OMDB_API_KEY")
 
 # Jinja2 templates for rendering HTML
 templates = Jinja2Templates(directory="templates")
