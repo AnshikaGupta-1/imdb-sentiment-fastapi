@@ -67,14 +67,14 @@ async def search_movie(request: Request, movie: str = Form(...)):
     response = requests.get(search_url, headers=headers)
     soup = BeautifulSoup(response.content, "html.parser")
     results = soup.select("td.result_text a")
-    movies = [
-        {
-            "Title": item.text,
-            "imdbID": item["href"].split("/")[2],
-            "Year": item.find_next("td").text.strip() if item.find_next("td") else ""
-        }
-        for item in results[:5]
-    ]
+movies = [
+    {
+        "Title": item.text,
+        "imdbID": item["href"].split("/")[2],
+        "Year": item.parent.text.strip().replace(item.text, "").strip(" ()")  # safer
+    }
+    for item in results[:5]
+]
     return templates.TemplateResponse("index.html", {"request": request, "movies": movies})
 
 @app.get("/movie/{imdb_id}", response_class=HTMLResponse)
