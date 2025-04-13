@@ -57,3 +57,8 @@ async def movie_detail(request: Request, imdb_id: str):
         "result": sentiment,
         "label": label
     })
+import os
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))  # fallback if PORT isn't set
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
