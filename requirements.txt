@@ -6,3 +6,4 @@ jinja2
 torch
 python-multipart
 beautifulsoup4
+IMDbPY
