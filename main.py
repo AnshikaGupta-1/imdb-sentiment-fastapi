@@ -11,7 +11,7 @@ import os
 # Load sentiment analysis model
 sentiment_model = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
 
-# TMDb API Setup
+# TMDb API Setup (v3 API key method)
 TMDB_API_KEY = os.environ.get("TMDB_API_KEY")
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 
@@ -58,42 +58,67 @@ async def search_movie(request: Request, movie: str = Form(...)):
     return templates.TemplateResponse("index.html", {"request": request, "movies": movies})
 
 @app.get("/movie/{movie_id}", response_class=HTMLResponse)
-async def movie_detail(request: Request, movie_id: str):
+async def movie_detail(request: Request, movie_id: str, page: int = 1):
     try:
         # Fetch movie details
         movie_url = f"{TMDB_BASE_URL}/movie/{movie_id}"
-        review_url = f"{TMDB_BASE_URL}/movie/{movie_id}/reviews"
         params = {"api_key": TMDB_API_KEY, "language": "en-US"}
-
         movie_res = requests.get(movie_url, params=params).json()
-        reviews_res = requests.get(review_url, params=params).json()
-
         title = movie_res.get("title", movie_id)
-        reviews = reviews_res.get("results", [])
 
-        if not reviews:
-            review = "No reviews found."
-            sentiment = "N/A"
-            label = "neutral"
-        else:
-            review = reviews[0]["content"]
-            sentiment_result = sentiment_model(review)[0]
-            sentiment = sentiment_result["label"]
-            label = "positive" if sentiment.startswith("4") or sentiment.startswith("5") else "negative"
+        # Fetch reviews with pagination
+        review_url = f"{TMDB_BASE_URL}/movie/{movie_id}/reviews"
+        params_reviews = {"api_key": TMDB_API_KEY, "language": "en-US", "page": page}
+        reviews_res = requests.get(review_url, params=params_reviews).json()
+
+        # Determine pagination limit: if there are more than 100 reviews, limit to 100 total.
+        total_results = reviews_res.get("total_results", 0)
+        total_pages = reviews_res.get("total_pages", 1)
+        # Assume roughly 20 reviews per page; hence, limit to 5 pages (i.e., 100 reviews)
+        safe_total_pages = total_pages
+        if total_results > 100:
+            safe_total_pages = min(total_pages, 5)
+
+        reviews_raw = reviews_res.get("results", [])
+
+        analyzed_reviews = []
+        for r in reviews_raw:
+            text = r.get("content", "")
+            if text:
+                sentiment_result = sentiment_model(text)[0]
+                # Determine sentiment class (adjust thresholds as needed)
+                label = "positive" if sentiment_result["label"].startswith("4") or sentiment_result["label"].startswith("5") else "negative"
+                analyzed_reviews.append({
+                    "text": text,
+                    "sentiment": sentiment_result["label"],
+                    "label": label
+                })
+
+        if not analyzed_reviews:
+            analyzed_reviews.append({
+                "text": "No reviews found.",
+                "sentiment": "N/A",
+                "label": "neutral"
+            })
 
     except Exception as e:
         print(f"TMDb API error: {e}")
         title = movie_id
-        review = "Error fetching reviews."
-        sentiment = "N/A"
-        label = "neutral"
+        analyzed_reviews = [{
+            "text": "Error fetching reviews.",
+            "sentiment": "N/A",
+            "label": "neutral"
+        }]
+        safe_total_pages = 1
+        page = 1
 
     return templates.TemplateResponse("index.html", {
         "request": request,
         "title": title,
-        "review": review,
-        "result": sentiment,
-        "label": label
+        "reviews": analyzed_reviews,
+        "current_page": page,
+        "total_pages": safe_total_pages,
+        "movie_id": movie_id
     })
 
 if __name__ == "__main__":
