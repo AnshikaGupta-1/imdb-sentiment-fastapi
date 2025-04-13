@@ -1,12 +1,10 @@
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from transformers import pipeline
-import os
 import requests
-import math
+import os
 
 app = FastAPI()
 
@@ -18,23 +16,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load sentiment analysis model
-sentiment_model = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
-
-# Jinja2 templates
-templates = Jinja2Templates(directory="templates")
-
-# TMDb API setup
+# TMDb and Sentiment model setup
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
+sentiment_model = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
-
-@app.head("/")
-async def health_check():
-    return
 
 @app.post("/search", response_class=HTMLResponse)
 async def search_movie(request: Request, movie: str = Form(...)):
@@ -42,64 +32,85 @@ async def search_movie(request: Request, movie: str = Form(...)):
         "api_key": TMDB_API_KEY,
         "query": movie
     })
-
     results = response.json().get("results", [])[:3]
     movies = [{
-        "Title": r.get("title"),
-        "imdbID": r.get("id"),
-        "Year": r.get("release_date", "N/A")[:4]
+        "title": r.get("title"),
+        "id": r.get("id"),
+        "year": r.get("release_date", "N/A")[:4]
     } for r in results]
-
     return templates.TemplateResponse("index.html", {"request": request, "movies": movies})
 
 @app.get("/movie/{movie_id}", response_class=HTMLResponse)
-async def movie_detail(request: Request, movie_id: int, page: int = 1):
+async def movie_detail(request: Request, movie_id: int):
     try:
-        movie_response = requests.get(f"{TMDB_BASE_URL}/movie/{movie_id}", params={
-            "api_key": TMDB_API_KEY
-        })
-        movie = movie_response.json()
-        title = movie.get("title", "Unknown Title")
-
-        review_response = requests.get(f"{TMDB_BASE_URL}/movie/{movie_id}/reviews", params={
+        # Fetch metadata
+        movie = requests.get(f"{TMDB_BASE_URL}/movie/{movie_id}", params={
             "api_key": TMDB_API_KEY,
-            "page": page
-        })
-        review_data = review_response.json()
-        reviews_raw = review_data.get("results", [])
-        total_pages = review_data.get("total_pages", 1)
+            "language": "en-US"
+        }).json()
 
-        # Shorten long reviews to first 500 characters (for model input)
-        texts_to_analyze = [r.get("content", "")[:500] for r in reviews_raw if r.get("content")]
-        results = sentiment_model(texts_to_analyze, batch_size=8)
+        credits = requests.get(f"{TMDB_BASE_URL}/movie/{movie_id}/credits", params={
+            "api_key": TMDB_API_KEY
+        }).json()
 
-        analyzed_reviews = []
-        for i, result in enumerate(results):
-            sentiment = result['label']
-            label = "positive" if sentiment.startswith("4") or sentiment.startswith("5") else "negative"
-            analyzed_reviews.append({
-                "text": reviews_raw[i].get("content", ""),
-                "sentiment": sentiment,
+        reviews_raw = []
+        for page in range(1, 6):  # Fetch up to 100 reviews
+            r = requests.get(f"{TMDB_BASE_URL}/movie/{movie_id}/reviews", params={
+                "api_key": TMDB_API_KEY,
+                "language": "en-US",
+                "page": page
+            }).json().get("results", [])
+            if not r:
+                break
+            reviews_raw.extend(r)
+
+        texts = [r["content"][:500] for r in reviews_raw[:100] if "content" in r]
+        sentiments = sentiment_model(texts, batch_size=8)
+
+        analyzed = []
+        pos_count = 0
+        for i, s in enumerate(sentiments):
+            label = "positive" if s["label"].startswith(("4", "5")) else "negative"
+            if label == "positive":
+                pos_count += 1
+            analyzed.append({
+                "content": reviews_raw[i].get("content", ""),
+                "author": reviews_raw[i].get("author", "Anonymous"),
+                "rating": reviews_raw[i].get("author_details", {}).get("rating", "N/A"),
+                "sentiment": s["label"],
                 "label": label
             })
 
+        total_reviews = len(analyzed)
+        pos_percent = round((pos_count / total_reviews) * 100) if total_reviews else 0
+        neg_percent = 100 - pos_percent
+
+        # Movie metadata for display
+        poster = f"https://image.tmdb.org/t/p/w500{movie.get('poster_path')}" if movie.get('poster_path') else ""
+        genres = ', '.join([g["name"] for g in movie.get("genres", [])])
+        director = next((m["name"] for m in credits.get("crew", []) if m["job"] == "Director"), "Unknown")
+        cast = ', '.join([a["name"] for a in credits.get("cast", [])[:3]])
+
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "title": movie.get("title"),
+            "poster": poster,
+            "rating": movie.get("vote_average"),
+            "runtime": movie.get("runtime"),
+            "genres": genres,
+            "director": director,
+            "overview": movie.get("overview"),
+            "cast": cast,
+            "reviews": analyzed,
+            "positive_percent": pos_percent,
+            "negative_percent": neg_percent,
+            "positive_count": pos_count,
+            "negative_count": total_reviews - pos_count
+        })
+
     except Exception as e:
-        print(f"TMDb API error: {e}")
-        title = movie_id
-        analyzed_reviews = [{"text": "Error fetching reviews.", "sentiment": "N/A", "label": "neutral"}]
-        total_pages = 1
-        page = 1
-
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "title": title,
-        "reviews": analyzed_reviews,
-        "movie_id": movie_id,
-        "current_page": page,
-        "total_pages": total_pages
-    })
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+        print("Error:", e)
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "error": "Failed to fetch movie data or reviews."
+        })
