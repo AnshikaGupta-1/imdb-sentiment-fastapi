@@ -7,6 +7,9 @@ from transformers import pipeline
 from imdb import IMDb
 import uvicorn
 import os
+from cinemagoer import Cinemagoer
+
+ia = Cinemagoer()
 
 app = FastAPI()
 
@@ -34,10 +37,6 @@ async def home(request: Request):
 @app.head("/")
 async def health_check():
     return
-
-from cinemagoer import Cinemagoer
-
-ia = Cinemagoer()
 
 @app.post("/search", response_class=HTMLResponse)
 async def search_movie(request: Request, movie: str = Form(...)):
