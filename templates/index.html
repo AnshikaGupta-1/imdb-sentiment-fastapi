@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -49,6 +50,21 @@
       border: none;
     }
 
+    .description-box {
+      background-color: var(--secondary);
+      border-left: 4px solid var(--accent);
+      padding: 1rem 1.5rem;
+      margin: 2rem auto;
+      border-radius: 8px;
+      max-width: 900px;
+    }
+    .description-box h3 { color: var(--accent); margin-bottom: 0.5rem; }
+    .description-box p {
+      margin-bottom: 0.7rem;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
     .movie-details {
       display: grid;
       grid-template-columns: 1fr 2fr;
@@ -78,16 +94,16 @@
     .sentiment-negative { border-left: 4px solid var(--negative); }
 
     @media (max-width: 768px) {
-  .movie-details {
-    display: block;
-  }
-  .search-container {
-    flex-direction: column;
-  }
-  .search-button {
-    margin-top: 1rem;
-  }
-}
+      .movie-details {
+        display: block;
+      }
+      .search-container {
+        flex-direction: column;
+      }
+      .search-button {
+        margin-top: 1rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -107,6 +123,14 @@
           <button class="search-button">Search</button>
         </div>
       </form>
+
+      <section class="description-box">
+        <div class="description-content">
+          <h3>🛠 Project Descriptions</h3>
+          <p><strong>Railway-based App:</strong> Same core logic with FastAPI, Uvicorn, and TMDb. Hosted on Railway for faster load times and instant startup. Includes a styled spinner and mobile-friendly layout. Handles up to 100 TMDb reviews with real-time sentiment classification. Quick and reliable for lightweight machine learning apps.</p>
+          <p style="text-align: right; color: var(--accent);"><em>By Anshika Gupta</em></p>
+        </div>
+      </section>
     </section>
 
     {% if movies %}
@@ -160,28 +184,28 @@
     </section>
     {% endif %}
   </main>
-     <div id="loading" style="display:none; text-align:center; margin:20px;">
-  <div style="border: 6px solid #f3f3f3; border-top: 6px solid #555; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin:auto;"></div>
-  <p>Fetching reviews...</p>
-</div>
 
-<script>
-  function showLoading() {
-    document.getElementById('loading').style.display = 'block';
-  }
+  <div id="loading" style="display:none; text-align:center; margin:20px;">
+    <div style="border: 6px solid #f3f3f3; border-top: 6px solid #555; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin:auto;"></div>
+    <p>Fetching reviews...this might take a minute</p>
+  </div>
 
-  // Add loading spinner to each movie link
-  document.querySelectorAll('a[href^="/movie/"]').forEach(link => {
-    link.addEventListener('click', showLoading);
-  });
-</script>
+  <script>
+    function showLoading() {
+      document.getElementById('loading').style.display = 'block';
+    }
 
-<style>
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-</style>
+    // Add loading spinner to each movie link
+    document.querySelectorAll('a[href^="/movie/"]').forEach(link => {
+      link.addEventListener('click', showLoading);
+    });
+  </script>
 
+  <style>
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 </body>
 </html>
