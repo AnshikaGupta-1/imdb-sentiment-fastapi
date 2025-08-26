@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from transformers import pipeline
 import requests
 import os
+import gc
 
 app = FastAPI()
 
@@ -19,7 +20,7 @@ app.add_middleware(
 # TMDb and Sentiment model setup
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
-sentiment_model = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+sentiment_model = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
@@ -64,13 +65,13 @@ async def movie_detail(request: Request, movie_id: int):
                 break
             reviews_raw.extend(r)
 
-        texts = [r["content"][:500] for r in reviews_raw[:100] if "content" in r]
+        texts = [r["content"][:300] for r in reviews_raw[:50] if "content" in r]
         sentiments = sentiment_model(texts, batch_size=8)
 
         analyzed = []
         pos_count = 0
         for i, s in enumerate(sentiments):
-            label = "positive" if s["label"].startswith(("4", "5")) else "negative"
+            label = "positive" if s["label"] == "POSITIVE" else "negative"
             if label == "positive":
                 pos_count += 1
             analyzed.append({
@@ -80,7 +81,9 @@ async def movie_detail(request: Request, movie_id: int):
                 "sentiment": s["label"],
                 "label": label
             })
-
+        # cleanup: free sentiment results from memory
+        del sentiments
+        gc.collect()
         total_reviews = len(analyzed)
         pos_percent = round((pos_count / total_reviews) * 100) if total_reviews else 0
         neg_percent = 100 - pos_percent
